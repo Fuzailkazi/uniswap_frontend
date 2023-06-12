@@ -1,18 +1,21 @@
-import "./App.css";
-import { useState, useEffect } from "react";
-import { ethers } from "ethers";
-import PageButton from "./components/PageButton";
-import ConnectButton from "./components/ConnectButton";
-import CurrencyField from "./components/CurrencyField";
-import { GearFill } from "react-bootstrap-icons";
-import ConfigModal from "./components/ConfigModal";
-import BeatLoader from "react-spinners/BeatLoader";
+import './App.css';
+import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { GearFill } from 'react-bootstrap-icons';
+
+import PageButton from './components/PageButton';
+import ConnectButton from './components/ConnectButton';
+import ConfigModal from './components/ConfigModal';
+import CurrencyField from './components/CurrencyField';
+
+import BeatLoader from 'react-spinners/BeatLoader';
 import {
   getWethContract,
   getUniContract,
   getPrice,
   runSwap,
-} from "./AlphaRouterService";
+} from './AlphaRouterService';
+
 function App() {
   const [provider, setProvider] = useState(undefined);
   const [signer, setSigner] = useState(undefined);
@@ -34,7 +37,7 @@ function App() {
 
   useEffect(() => {
     const onLoad = async () => {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = await new ethers.providers.Web3Provider(window.ethereum);
       setProvider(provider);
 
       const wethContract = getWethContract();
@@ -47,21 +50,19 @@ function App() {
   }, []);
 
   const getSigner = async (provider) => {
-    provider.send("eth_requestAccounts", []);
+    provider.send('eth_requestAccounts', []);
     const signer = provider.getSigner();
     setSigner(signer);
   };
-
   const isConnected = () => signer !== undefined;
   const getWalletAddress = () => {
     signer.getAddress().then((address) => {
       setSignerAddress(address);
 
-      // connect weth and uniswap contracts
+      // todo: connect weth and uni contracts
       wethContract.balanceOf(address).then((res) => {
         setWethAmount(Number(ethers.utils.formatEther(res)));
       });
-
       uniContract.balanceOf(address).then((res) => {
         setUniAmount(Number(ethers.utils.formatEther(res)));
       });
@@ -72,14 +73,31 @@ function App() {
     getWalletAddress();
   }
 
+  const getSwapPrice = (inputAmount) => {
+    setLoading(true);
+    setInputAmount(inputAmount);
+
+    const swap = getPrice(
+      inputAmount,
+      slippageAmount,
+      Math.floor(Date.now() / 1000 + deadlineMinutes * 60),
+      signerAddress
+    ).then((data) => {
+      setTransaction(data[0]);
+      setOutputAmount(data[1]);
+      setRatio(data[2]);
+      setLoading(false);
+    });
+  };
+
   return (
     <div className='App'>
       <div className='appNav'>
         <div className='my-2 buttonContainer buttonContainerTop'>
-          <PageButton name={"swap"} isBold={true} />
-          <PageButton name={"pool"} isBold={false} />
-          <PageButton name={"vote"} isBold={false} />
-          <PageButton name={"charts"} isBold={false} />
+          <PageButton name={'Swap'} isBold={true} />
+          <PageButton name={'Pool'} />
+          <PageButton name={'Vote'} />
+          <PageButton name={'Charts'} />
         </div>
 
         <div className='rightNav'>
@@ -92,7 +110,7 @@ function App() {
             />
           </div>
           <div className='my-2 buttonContainer'>
-            <PageButton name={"..."} isBold={true} />
+            <PageButton name={'...'} isBold={true} />
           </div>
         </div>
       </div>
@@ -101,12 +119,7 @@ function App() {
         <div className='swapContainer'>
           <div className='swapHeader'>
             <span className='swapText'>Swap</span>
-            <span
-              className='gearContainer'
-              onClick={() => {
-                setShowModal(true);
-              }}
-            >
+            <span className='gearContainer' onClick={() => setShowModal(true)}>
               <GearFill />
             </span>
             {showModal && (
@@ -119,11 +132,12 @@ function App() {
               />
             )}
           </div>
+
           <div className='swapBody'>
             <CurrencyField
               field='input'
               tokenName='WETH'
-              // getSwapPrice={getSwapPrice}
+              getSwapPrice={getSwapPrice}
               signer={signer}
               balance={wethAmount}
             />
@@ -136,6 +150,25 @@ function App() {
               spinner={BeatLoader}
               loading={loading}
             />
+          </div>
+
+          <div className='ratioContainer'>
+            {ratio && <>{`1 UNI = ${ratio} WETH`}</>}
+          </div>
+
+          <div className='swapButtonContainer'>
+            {isConnected() ? (
+              <div
+                onClick={() => runSwap(transaction, signer)}
+                className='swapButton'
+              >
+                Swap
+              </div>
+            ) : (
+              <div onClick={() => getSigner(provider)} className='swapButton'>
+                Connect Wallet
+              </div>
+            )}
           </div>
         </div>
       </div>
